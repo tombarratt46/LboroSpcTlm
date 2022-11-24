@@ -3,6 +3,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
 #include <Adafruit_BMP280.h>
+#include <SD.h>
 
 // 84 bytes
 struct reading
@@ -48,6 +49,7 @@ struct reading
   float altitude; // Meters (from AGL)
 };
 
+char filename[8];
 
 // Quaternion
 // Angular Velocity 100Hz
@@ -56,10 +58,10 @@ struct reading
 // Temperature 1Hz
 Adafruit_BNO055 bno = Adafruit_BNO055();
 Adafruit_BMP280 bmp = Adafruit_BMP280();
-
+File datafile;
 unsigned long BNO055_sample_rate = 100;
 float ground_pressure;
-
+int writeCount = 0;
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -88,6 +90,25 @@ void setup() {
     };
   }
 
+    // blink three times repeatedly if SD fails to start
+  if (!SD.begin(10)) // CS pin 10
+    {
+    while (1) {
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(100);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(100);
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(100);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(100);
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(100);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(1000);
+    };
+  }
+
   // Approx reading @ 26.3hz
   bmp.setSampling(Adafruit_BMP280::MODE_NORMAL, // Operating Mode
                   Adafruit_BMP280::SAMPLING_X2, // Temperature sampling mode
@@ -96,6 +117,16 @@ void setup() {
                   Adafruit_BMP280::STANDBY_MS_1 // Standby time
                   );
   ground_pressure = bmp.readPressure();
+
+  int n = 0;
+  do
+  {
+     n++;
+     snprintf(filename, sizeof(filename), "%04d.dat", n);
+  } while (SD.exists(filename));
+
+  datafile = SD.open(filename, FILE_WRITE);
+
   delay(500);
 }
 
@@ -112,6 +143,17 @@ void loop() {
   getAltitude(&current_reading);
   current_reading.VOT = micros();
 
+  datafile.write((uint8_t *) &current_reading, sizeof(reading)/sizeof(uint8_t));
+  writeCount++;
+
+
+  //Every ~10 seconds (10,000 writes at 100hz) close and open the file to rebuild file structure
+  // Unsure if this is actually needed, need to check
+  if (writeCount >= 10000){
+    datafile.close();
+    datafile = SD.open(filename, FILE_WRITE);
+    writeCount = 0;
+  }
 
   delay(1.0 / BNO055_sample_rate * 1000.0);
 }
