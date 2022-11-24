@@ -1,70 +1,12 @@
-#include <Arduino.h>
-#include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BNO055.h>
-#include <Adafruit_BMP280.h>
-#include <SD.h>
 #include <main.h>
 
-// 84 bytes
-struct reading
-{
-  // Magnetic Field Strength Vector (uT)
-  //12 bytes
-  float magnetometer_x;
-  float magnetometer_y;
-  float magnetometer_z;
+#define SAMPLE_RATE 100
 
-  // Acceleration Vector (m/s^2)
-  //12 bytes
-  float accelerometer_x;
-  float accelerometer_y;
-  float accelerometer_z;
-
-  // Angular Velocity Vector (rad/s)
-  //12 bytes
-  float gyroscope_x;
-  float gyroscope_y;
-  float gyroscope_z;
-
-  // Gravity Vector (m/s^2)
-  //12 bytes
-  float gravity_x;
-  float gravity_y;
-  float gravity_z;
-
-  // Absolute Orientation Quaterion
-  //16 bytes
-  double orientation_w;
-  double orientation_x;
-  double orientation_y;
-  double orientation_z;
-
-  // Vehicle on time in microseconds
-  // 4 bytes
-  unsigned long VOT;
-
-  // 12 bytes
-  float temperature; //Kelvin
-  float pressure; //Pa
-  float altitude; // Meters (from AGL)
-};
-
-char filename[8];
-
-// Quaternion
-// Angular Velocity 100Hz
-// Linear Acceleration 100Hz
-// Magnetic Field strength 20Hz
-// Temperature 1Hz
-Adafruit_BNO055 bno = Adafruit_BNO055();
-Adafruit_BMP280 bmp = Adafruit_BMP280();
-File datafile;
-unsigned long BNO055_sample_rate = 100;
-float ground_pressure;
-int writeCount = 0;
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
+  
+  bno = Adafruit_BNO055();
+  bmp = Adafruit_BMP280();
 
   // blink once repeatedly if bno fails to start
   if (!bno.begin())
@@ -157,7 +99,7 @@ void loop() {
     writeCount = 0;
   }
 
-  delay(1.0 / BNO055_sample_rate * 1000.0);
+  delay(1.0 / SAMPLE_RATE * 1000.0);
 }
 
 // Raw data from magnetometer 
