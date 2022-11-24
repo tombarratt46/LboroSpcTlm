@@ -1,67 +1,12 @@
-#include <Arduino.h>
-#include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BNO055.h>
-#include <Adafruit_BMP280.h>
+#include <main.h>
 
-// 84 bytes
-struct reading
-{
-  // Magnetic Field Strength Vector (uT)
-  //12 bytes
-  float magnetometer_x;
-  float magnetometer_y;
-  float magnetometer_z;
-
-  // Acceleration Vector (m/s^2)
-  //12 bytes
-  float accelerometer_x;
-  float accelerometer_y;
-  float accelerometer_z;
-
-  // Angular Velocity Vector (rad/s)
-  //12 bytes
-  float gyroscope_x;
-  float gyroscope_y;
-  float gyroscope_z;
-
-  // Gravity Vector (m/s^2)
-  //12 bytes
-  float gravity_x;
-  float gravity_y;
-  float gravity_z;
-
-  // Absolute Orientation Quaterion
-  //16 bytes
-  double orientation_w;
-  double orientation_x;
-  double orientation_y;
-  double orientation_z;
-
-  // Vehicle on time in microseconds
-  // 4 bytes
-  unsigned long VOT;
-
-  // 12 bytes
-  float temperature; //Kelvin
-  float pressure; //Pa
-  float altitude; // Meters (from AGL)
-};
-
-
-// Quaternion
-// Angular Velocity 100Hz
-// Linear Acceleration 100Hz
-// Magnetic Field strength 20Hz
-// Temperature 1Hz
-Adafruit_BNO055 bno = Adafruit_BNO055();
-Adafruit_BMP280 bmp = Adafruit_BMP280();
-
-unsigned long BNO055_sample_rate = 100;
-float ground_pressure;
+#define SAMPLE_RATE 100
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
+  
+  bno = Adafruit_BNO055();
+  bmp = Adafruit_BMP280();
 
   // blink once repeatedly if bno fails to start
   if (!bno.begin())
@@ -88,6 +33,25 @@ void setup() {
     };
   }
 
+    // blink three times repeatedly if SD fails to start
+  if (!SD.begin(10)) // CS pin 10
+    {
+    while (1) {
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(100);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(100);
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(100);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(100);
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(100);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(1000);
+    };
+  }
+
   // Approx reading @ 26.3hz
   bmp.setSampling(Adafruit_BMP280::MODE_NORMAL, // Operating Mode
                   Adafruit_BMP280::SAMPLING_X2, // Temperature sampling mode
@@ -96,12 +60,23 @@ void setup() {
                   Adafruit_BMP280::STANDBY_MS_1 // Standby time
                   );
   ground_pressure = bmp.readPressure();
+
+  int n = 0;
+  do
+  {
+     n++;
+     snprintf(filename, sizeof(filename), "%04d.dat", n);
+  } while (SD.exists(filename));
+
+  datafile = SD.open(filename, FILE_WRITE);
+
   delay(500);
 }
 
+
+
 void loop() {
   reading current_reading;
-
   getMagnetometer(&current_reading);
   getAccelerometer(&current_reading);
   getGyroscope(&current_reading);
@@ -112,8 +87,19 @@ void loop() {
   getAltitude(&current_reading);
   current_reading.VOT = micros();
 
+  datafile.write((uint8_t *) &current_reading, sizeof(reading)/sizeof(uint8_t));
+  writeCount++;
 
-  delay(1.0 / BNO055_sample_rate * 1000.0);
+
+  //Every ~10 seconds (10,000 writes at 100hz) close and open the file to rebuild file structure
+  // Unsure if this is actually needed, need to check
+  if (writeCount >= 10000){
+    datafile.close();
+    datafile = SD.open(filename, FILE_WRITE);
+    writeCount = 0;
+  }
+
+  delay(1.0 / SAMPLE_RATE * 1000.0);
 }
 
 // Raw data from magnetometer 
