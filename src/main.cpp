@@ -4,6 +4,7 @@
 #include <Adafruit_BNO055.h>
 #include <Adafruit_BMP280.h>
 #include <SD.h>
+#include <main.h>
 
 // 84 bytes
 struct reading
@@ -130,9 +131,10 @@ void setup() {
   delay(500);
 }
 
+
+
 void loop() {
   reading current_reading;
-
   getMagnetometer(&current_reading);
   getAccelerometer(&current_reading);
   getGyroscope(&current_reading);
